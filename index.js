@@ -16,16 +16,37 @@ app.get('/', (req, res) => {
 });
 
 app.post('/', upload.single('picture'), async (req, res) => {
-    const { buffer, originalname } = req.file;
-    // const timestamp = new Date().toISOString();
-    const ref = `${new Date().toISOString()}-${originalname}.webp`;
-    await sharp(buffer)
-        .webp({ quality: 95 })
-        .jpeg({ mozjpeg: true })
-        .resize(1600)
-        .toFile('./public/' + ref);
-    const link = `http://images.norenko.net.ua/public/${ref}`;
-    return res.json({ message: 'Image has been uploaded', link })
-})
+    try {
+        const { buffer, originalname } = req.file;
+        const ref = `${new Date().toISOString()}-${originalname}.webp`;
+        await sharp(buffer)
+            .webp({ quality: 95 })
+            .jpeg({ mozjpeg: true })
+            .resize(1600)
+            .toFile('./public/' + ref);
+        const link = `http://images.norenko.net.ua/public/${ref}`;
+        return res.json({ message: 'Image has been uploaded', link })
+    } catch (error) {
+        res.json({message: `There is some error ${error}`})
+        console.log(error);
+    }
+});
+
+app.post('/other', upload.single('picture'), async (req, res) => {
+    try {
+        const { buffer, originalname } = req.file;
+        const ref = `${new Date().toISOString()}-${originalname}`;
+        await sharp(buffer)
+            .jpeg({ mozjpeg: true })
+            .resize(1600)
+            .toFile('./public/' + ref);
+        const link = `http://images.norenko.net.ua/public/${ref}`;
+        return res.json({ message: 'Image has been uploaded', link })
+    } catch (error) {
+        res.json({message: `There is some error ${error}`})
+        console.log(error);
+    }
+});
+
 
 app.listen(PORT, () => console.log(`server started on port ${PORT}`));
