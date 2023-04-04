@@ -1,52 +1,80 @@
 import express from 'express';
 import multer from 'multer';
+import path from 'path';
 import sharp from 'sharp';
-import cors from 'cors';
+import fs from 'fs';
 
 const app = express();
-const storage = multer.memoryStorage();
-const upload = multer({ storage });
 
-const PORT = 3002;
-app.use('/public', express.static('public'));
-app.use(cors());
+// Define storage for the files
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, 'uploads/');
+    },
+    filename: (req, file, cb) => {
+        cb(
+            null,
+            `${new Date()
+                .toLocaleString()
+                .replaceAll('/', '.')
+                .replaceAll(',', '-')
+                .replaceAll(' ', '')}-${file.originalname}`
+        );
+    },
+});
 
-app.get('/', (req, res) => {
-    res.json({ message: 'all is gonna be okay' });
+// Create multer object for handling file uploads
+const upload = multer({
+    storage,
+    limits: { fileSize: 100000000 }, // 100MB file size limit
+});
+
+// Route for file upload
+app.post('/upload', upload.single('file'), async (req, res) => {
+    if (!req.file) {
+        res.status(400).send('No file uploaded');
+    } else {
+        const fileUrl = `${req.protocol}://${req.get('host')}/uploads/${
+            req.file.filename
+        }`;
+        return res.json({ message: 'File has been uploaded', fileUrl });
+    }
 });
 
 app.post('/', upload.single('picture'), async (req, res) => {
-    try {
-        const { buffer, originalname } = req.file;
-        const ref = `${new Date().toISOString()}-${originalname}.webp`;
-        await sharp(buffer)
-            .webp({ quality: 95 })
-            .jpeg({ mozjpeg: true })
-            .resize(1600)
-            .toFile('./public/' + ref);
-        const link = `http://images.norenko.net.ua/public/${ref}`;
-        return res.json({ message: 'Image has been uploaded', link })
-    } catch (error) {
-        res.json({message: `There is some error ${error}`})
-        console.log(error);
+    if (!req.file) {
+        res.status(400).send('No file uploaded');
+    } else {
+        const filePath = `uploads/${req.file.filename}`;
+        const filepaath = await optimizeImage(filePath);
+        const fileUrl = `${req.protocol}://${req.get('host')}/${filepaath}`;
+        return res.json({ message: 'File has been uploaded', fileUrl });
     }
 });
 
-app.post('/other', upload.single('picture'), async (req, res) => {
-    try {
-        const { buffer, originalname } = req.file;
-        const ref = `${new Date().toISOString()}-${originalname}`;
-        await sharp(buffer)
-            .jpeg({ mozjpeg: true })
-            .resize(1600)
-            .toFile('./public/' + ref);
-        const link = `http://images.norenko.net.ua/public/${ref}`;
-        return res.json({ message: 'Image has been uploaded', link })
-    } catch (error) {
-        res.json({message: `There is some error ${error}`})
-        console.log(error);
-    }
-});
+async function optimizeImage(filePath) {
+    const tempFilePath = `${filePath}-temp`;
 
+    await sharp(filePath)
+        .jpeg({ mozjpeg: true })
+        .resize(1600)
+        .toBuffer()
+        .then((data) => sharp(data).webp({ quality: 95 }).toFile(tempFilePath))
+        .catch((err) => {
+            console.error(err);
+            throw err;
+        });
 
-app.listen(PORT, () => console.log(`server started on port ${PORT}`));
+    // Delete the original file and return the URL of the optimized image
+    fs.unlinkSync(filePath);
+    fs.renameSync(tempFilePath, filePath.replace(/\.[^/.]+$/, '.webp'));
+
+    return `${filePath.replace(/\.[^/.]+$/, '.webp')}`;
+}
+
+// Serve static files in the 'uploads' directory
+app.use('/uploads', express.static('uploads'));
+
+// Start the server
+const PORT = 3002;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
