@@ -3,8 +3,12 @@ import multer from 'multer';
 import path from 'path';
 import sharp from 'sharp';
 import fs from 'fs';
+import cors from 'cors';
 
 const app = express();
+
+// add cors
+app.use(cors());
 
 // Define storage for the files
 const storage = multer.diskStorage({
